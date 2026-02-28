@@ -50,7 +50,7 @@ st.markdown("""
 # ==============================
 with st.sidebar:
     st.header("🔑 ATUR CINTA")
-    user_api_key = st.text_input("Ganti/Input API Key Cadangan", type="password", help="CINTA BARU jika jalur utama limit atau error 429.")
+    user_api_key = st.text_input("Ganti Dengan CINTA Baru", type="password", help="CINTA BARU jika jalur utama limit atau error 429.")
     st.divider()
     st.info("Prioritas: CINTA di atas. Jika kosong, menggunakan CINTA BARU (Secrets).")
 
