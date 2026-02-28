@@ -49,10 +49,10 @@ st.markdown("""
 # 2. SISTEM KEAMANAN & INPUT API KEY
 # ==============================
 with st.sidebar:
-    st.header("🔑 KUNCI CINTA")
-    user_api_key = st.text_input("Ganti/Input Cinta Baru", type="password", help="Masukkan API Key jika jalur utama limit atau error 429.")
+    st.header("🔑 ATUR CINTA")
+    user_api_key = st.text_input("Ganti/Input API Key Cadangan", type="password", help="CINTA BARU jika jalur utama limit atau error 429.")
     st.divider()
-    st.info("Prioritas: Kunci CINTA di atas. Jika kosong, menggunakan Cinta Baru (Secrets).")
+    st.info("Prioritas: CINTA di atas. Jika kosong, menggunakan CINTA BARU (Secrets).")
 
 FINAL_API_KEY = user_api_key if user_api_key else st.secrets.get("GEMINI_API_KEY", "")
 
