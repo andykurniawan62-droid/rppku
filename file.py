@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+import re
 
 # ==============================
 # 1. KONFIGURASI HALAMAN & CSS
@@ -23,13 +24,13 @@ st.markdown("""
     }
     
     .rpp-paper h1 { text-align: center; text-decoration: underline; font-size: 16pt; color: #000; text-transform: uppercase; margin-bottom: 20px; }
-    .rpp-paper table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-    .rpp-paper th, .rpp-paper td { border: 1px solid black; padding: 6px 10px; text-align: left; color: #000; vertical-align: top; }
+    .rpp-paper table { width: 100%; border-collapse: collapse; margin-bottom: 15px; background-color: white !important; }
+    .rpp-paper th, .rpp-paper td { border: 1px solid black !important; padding: 8px 12px; text-align: left; color: #000 !important; vertical-align: top; }
     
     /* CSS KHUSUS TANDA TANGAN & IDENTITAS (TANPA GARIS) */
     .rpp-paper .no-border, .rpp-paper .no-border td { border: none !important; padding: 2px 0; }
-    .name-line { font-weight: bold; text-decoration: underline; margin-bottom: 0px; padding-bottom: 0px; }
-    .nip-line { margin-top: -5px; padding-top: 0px; font-size: 10pt; }
+    .name-line { font-weight: bold; text-decoration: underline; margin-bottom: 0px; padding-bottom: 0px; display: block; }
+    .nip-line { margin-top: -5px; padding-top: 0px; font-size: 10pt; display: block; }
 
     @media print {
         .stButton, .stForm, .stMarkdown:not(.rpp-paper), .stSidebar, header, footer, .main-header, [data-testid="stHeader"] {
@@ -47,14 +48,12 @@ st.markdown("""
 # ==============================
 # 2. SISTEM KEAMANAN & INPUT API KEY
 # ==============================
-# Sidebar untuk Input API Key Cadangan
 with st.sidebar:
     st.header("🔑 Pengaturan API")
     user_api_key = st.text_input("Ganti/Input API Key Cadangan", type="password", help="Masukkan API Key jika jalur utama limit atau error 429.")
     st.divider()
-    st.info("Sistem akan mencoba menggunakan Key di atas dulu. Jika kosong, baru menggunakan Key sistem (Secrets).")
+    st.info("Prioritas: Key di atas. Jika kosong, menggunakan Key sistem (Secrets).")
 
-# Prioritas: 1. Input User, 2. Secrets
 FINAL_API_KEY = user_api_key if user_api_key else st.secrets.get("GEMINI_API_KEY", "")
 
 if not FINAL_API_KEY:
@@ -82,7 +81,7 @@ if st.session_state.usage_count >= MAX_FREE_TRIAL:
     st.stop()
 
 # ==============================
-# 4. FORM INPUT
+# 4. FORM INPUT (100% DIPERTAHANKAN)
 # ==============================
 with st.form("main_form"):
     st.subheader("🏢 Data Administrasi Sekolah")
@@ -112,9 +111,9 @@ with st.form("main_form"):
     st.subheader("📖 Sumber & Media Belajar")
     cm1, cm2 = st.columns(2)
     with cm1:
-        media_ajar = st.text_area("Media Pembelajaran", placeholder="Contoh: LCD Proyektor, Video YouTube, Kartu Gambar, Alat Peraga...")
+        media_ajar = st.text_area("Media Pembelajaran", placeholder="Contoh: LCD Proyektor, Video YouTube, Kartu Gambar...")
     with cm2:
-        sumber_ajar = st.text_area("Sumber Belajar", placeholder="Contoh: Buku Siswa Kelas 4, Lingkungan Sekolah, Internet...")
+        sumber_ajar = st.text_area("Sumber Belajar", placeholder="Contoh: Buku Siswa Kelas 4, Lingkungan Sekolah...")
 
     st.subheader("📅 Rincian Pertemuan")
     fase = st.text_input("Fase/Kelas/Semester", value="Fase B / Kelas 4 / Ganjil")
@@ -137,66 +136,73 @@ with st.form("main_form"):
     btn_generate = st.form_submit_button("🚀 GENERATE RPP SEKARANG")
 
 # ==============================
-# 5. LOGIKA GENERATE (HOLISTIK & AUTO-FALLBACK)
+# 5. LOGIKA GENERATE (SEMPURNA & BERSIH)
 # ==============================
 if btn_generate:
     if not nama_sekolah or not materi_pokok:
         st.warning("⚠️ Mohon lengkapi Data Sekolah dan Materi!")
     else:
-        # Daftar urutan model estafet
-        model_variants = ['gemini-2.0-flash-001', 'gemini-2.5-flash', 'gemini-1.5-flash']
+        model_variants = ['gemini-2.0-flash-001', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']
         
         profil_str = ", ".join([k for k, v in {"Beriman":p1, "Kewargaan":p2, "Bernalar Kritis":p3, "Kreatif":p4, "Gotong Royong":p5, "Mandiri":p6, "Kesehatan":p7, "Komunikasi":p8}.items() if v])
         jadwal_detail = "\n".join([f"- P{p['no']}: Model {p['model']}, Waktu {p['waktu']}, Tgl {p['tgl']}" for p in data_pertemuan])
         
+        # PROMPT YANG LEBIH TEGAS AGAR HASIL TIDAK BERANTAKAN
         prompt = f"""
-        Buatlah RPP Kurikulum Merdeka yang HOLISTIK, BERMAKNA, dan MENGGEMBIRAKAN dalam format HTML murni.
+        Buatlah RPP Kurikulum Merdeka HOLISTIK dalam format HTML MURNI.
+        DILARANG memberikan kata pengantar, DILARANG menggunakan markdown ```html.
+        Langsung mulai dari tag HTML untuk konten RPP.
+
+        DATA:
         Sekolah: {nama_sekolah} | Guru: {nama_guru} | Kepsek: {nama_kepsek}
         Mapel: {mapel} | Fase: {fase} | Materi: {materi_pokok}
         Dimensi Profil: {profil_str} | Media: {media_ajar} | Sumber: {sumber_ajar}
         Jadwal: {jadwal_detail} | Tujuan: {tujuan_umum}
 
-        WAJIB MUNCULKAN KOMPONEN BERIKUT:
-        1. IDENTITAS & KOMPONEN INTI: Tampilkan dalam <table class="no-border"> termasuk Media dan Sumber Belajar.
-        2. PERTANYAAN PEMANTIK: Untuk membangun kesadaran murid.
-        3. LANGKAH PEMBELAJARAN (Tabel Border):
-           - PENDAHULUAN: Apersepsi yang BERMAKNA (kaitan kehidupan nyata).
-           - INTI: Sesuai Sintaks Model Pembelajaran yang dipilih, suasana MENGGEMBIRAKAN.
-           - PENUTUP: REFLEKSI MURID (untuk kemandirian/pengaturan diri).
-        4. ASESMEN: Diagnostik, Formatif, dan Sumatif lengkap dengan Rubrik/Kisi-kisi.
-        5. TANDA TANGAN: Kepsek (Kiri), Guru (Kanan). Gunakan class="name-line" dan class="nip-line" agar rapat.
-
-        Hanya berikan tag HTML tanpa markdown atau pembukaan.
+        STRUKTUR WAJIB:
+        1. Judul: <h1>MODUL AJAR / RPP KURIKULUM MERDEKA</h1>
+        2. Identitas Sekolah & Komponen Inti (Media/Sumber) dalam <table class="no-border">.
+        3. Langkah Pembelajaran dalam <table border="1">.
+           - Pendahuluan (Apersepsi Bermakna)
+           - Inti (Sesuai Sintaks {list_model[0]})
+           - Penutup (Refleksi Murid)
+        4. Asesmen & Rubrik Penilaian Lengkap.
+        5. Tanda Tangan rapat dengan class="name-line" dan class="nip-line".
         """
 
         success = False
         for m_name in model_variants:
             try:
-                with st.spinner(f"Sedang menyusun RPP dengan jalur {m_name}..."):
+                with st.spinner(f"Menyusun RPP via {m_name}..."):
                     model = genai.GenerativeModel(m_name)
                     response = model.generate_content(prompt)
-                    if response.text:
+                    raw_text = response.text
+                    
+                    # LOGIKA PEMBERSIH (CLEANING): Membuang ```html dan spasi tak perlu
+                    clean_html = re.sub(r'```html|```', '', raw_text).strip()
+                    
+                    if clean_html:
                         st.session_state.usage_count += 1
-                        st.session_state.hasil_rpp = response.text.replace("```html", "").replace("```", "").strip()
+                        st.session_state.hasil_rpp = clean_html
                         success = True
                         break
             except Exception as e:
-                if "429" in str(e):
-                    st.warning(f"Jalur {m_name} limit, mencoba jalur berikutnya...")
-                    continue
-                else:
-                    st.error(f"Kendala pada jalur {m_name}: {e}")
-                    continue
+                if "429" in str(e): continue
+                else: 
+                    st.error(f"Error: {e}")
+                    break
 
         if not success:
-            st.error("⚠️ Semua jalur API penuh/limit. Masukkan API Key baru di Sidebar!")
+            st.error("⚠️ Semua jalur API limit. Silakan masukkan API Key baru di Sidebar!")
 
 # ==============================
 # 6. DISPLAY HASIL
 # ==============================
 if "hasil_rpp" in st.session_state:
-    st.success(f"✅ RPP Selesai! (Sisa Kuota: {MAX_FREE_TRIAL - st.session_state.usage_count})")
-    st.markdown("""<button onclick="window.print()" style="width:100%; padding:15px; background-color:#28a745; color:white; border:none; border-radius:10px; cursor:pointer; font-weight:bold; font-size:16px;">📥 DOWNLOAD / CETAK SEBAGAI PDF</button>""", unsafe_allow_html=True)
+    st.success(f"✅ RPP Selesai! (Sisa: {MAX_FREE_TRIAL - st.session_state.usage_count})")
+    st.markdown("""<button onclick="window.print()" style="width:100%; padding:15px; background-color:#28a745; color:white; border:none; border-radius:10px; cursor:pointer; font-weight:bold; font-size:16px; margin-bottom:10px;">📥 DOWNLOAD / CETAK SEBAGAI PDF</button>""", unsafe_allow_html=True)
+    
+    # Menampilkan hasil di dalam kertas putih
     st.markdown(f'<div class="rpp-paper">{st.session_state.hasil_rpp}</div>', unsafe_allow_html=True)
 
 st.markdown(f"<br><p style='text-align: center; color: #555;'>© 2026 AI Generator Pro - Andy Kurniawan</p>", unsafe_allow_html=True)
